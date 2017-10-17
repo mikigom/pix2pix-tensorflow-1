@@ -77,26 +77,43 @@ class pix2pix(object):
 
         self.fake_B = self.generator(self.real_A)
 
+        """
         self.real_AB = tf.concat([self.real_A, self.real_B], 3)
         self.fake_AB = tf.concat([self.real_A, self.fake_B], 3)
         self.D, self.D_logits = self.discriminator(self.real_AB, reuse=False)
         self.D_, self.D_logits_ = self.discriminator(self.fake_AB, reuse=True)
+        """
+
+        self.F, self.F_logits = self.discriminator(self.real_A, , vs='A_mapper', reuse=False)
+        self.Fp_real, self.Fp_real_logits = self.discriminator(self.real_B, vs='B_mapper', reuse=False)
+        self.Fp_fake, self.Fp_fake_logits = self.discriminator(self.fake_B, vs='B_mapper', reuse=True)
 
         self.fake_B_sample = self.sampler(self.real_A)
 
-        self.d_sum = tf.summary.histogram("d", self.D)
-        self.d__sum = tf.summary.histogram("d_", self.D_)
+        self.f_sum = tf.summary.histogram("f", self.F)
+        self.fp_real_sum = tf.summary.histogram("fp_real", self.Fp_real)
+        self.fp_fake_sum = tf.summary.histogram("fp_fake", self.Fp_fake)
         self.fake_B_sum = tf.summary.image("fake_B", self.fake_B)
 
+        """
         self.d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_logits, labels=tf.ones_like(self.D)))
         self.d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_logits_, labels=tf.zeros_like(self.D_)))
         self.g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=self.D_logits_, labels=tf.ones_like(self.D_))) \
                         + self.L1_lambda * tf.reduce_mean(tf.abs(self.real_B - self.fake_B))
+        """
+
+        real_E = tf.abs(self.F_logits - self.Fp_real_logits)
+        fake_E = tf.abs(self.F_logits - self.Fp_fake_logits)
+
+        m = 1.
+        self.d_loss_real = tf.reduce_mean(tf.square(real_E))
+        self.d_loss_fake = tf.reduce_mean(tf.square(tf.maximum(m-fake_E, tf.zeros_like(self.F_logits))))
+
+        self.d_loss = 0.5*(self.d_loss_real+self.d_loss_fake)
+        self.g_loss = tf.reduce_mean(tf.squared_difference(self.F_logits, self.Fp_fake_logits))
 
         self.d_loss_real_sum = tf.summary.scalar("d_loss_real", self.d_loss_real)
         self.d_loss_fake_sum = tf.summary.scalar("d_loss_fake", self.d_loss_fake)
-
-        self.d_loss = self.d_loss_real + self.d_loss_fake
 
         self.g_loss_sum = tf.summary.scalar("g_loss", self.g_loss)
         self.d_loss_sum = tf.summary.scalar("d_loss", self.d_loss)
@@ -139,9 +156,8 @@ class pix2pix(object):
         init_op = tf.global_variables_initializer()
         self.sess.run(init_op)
 
-        self.g_sum = tf.summary.merge([self.d__sum,
-            self.fake_B_sum, self.d_loss_fake_sum, self.g_loss_sum])
-        self.d_sum = tf.summary.merge([self.d_sum, self.d_loss_real_sum, self.d_loss_sum])
+        self.g_sum = tf.summary.merge([self.fake_B_sum, self.d_loss_fake_sum, self.g_loss_sum])
+        self.d_sum = tf.summary.merge([self.f_sum, self.fp_real_sum, self.fp_fake_sum, self.d_loss_real_sum, self.d_loss_sum])
         self.writer = tf.summary.FileWriter("./logs", self.sess.graph)
 
         counter = 1
@@ -195,9 +211,9 @@ class pix2pix(object):
                 if np.mod(counter, 500) == 2:
                     self.save(args.checkpoint_dir, counter)
 
-    def discriminator(self, image, y=None, reuse=False):
+    def discriminator(self, image, y=None, vs=None, reuse=False):
 
-        with tf.variable_scope("discriminator") as scope:
+        with tf.variable_scope('discriminator_'+vs) as scope:
 
             # image is 256 x 256 x (input_c_dim + output_c_dim)
             if reuse:
