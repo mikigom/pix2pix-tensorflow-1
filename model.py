@@ -84,7 +84,7 @@ class pix2pix(object):
         self.D_, self.D_logits_ = self.discriminator(self.fake_AB, reuse=True)
         """
 
-        self.F, self.F_logits = self.discriminator(self.real_A, , vs='A_mapper', reuse=False)
+        self.F, self.F_logits = self.discriminator(self.real_A, vs='A_mapper', reuse=False)
         self.Fp_real, self.Fp_real_logits = self.discriminator(self.real_B, vs='B_mapper', reuse=False)
         self.Fp_fake, self.Fp_fake_logits = self.discriminator(self.fake_B, vs='B_mapper', reuse=True)
 
