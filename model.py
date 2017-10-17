@@ -102,15 +102,16 @@ class pix2pix(object):
                         + self.L1_lambda * tf.reduce_mean(tf.abs(self.real_B - self.fake_B))
         """
 
-        real_E = tf.abs(self.F_logits - self.Fp_real_logits)
-        fake_E = tf.abs(self.F_logits - self.Fp_fake_logits)
+        real_E = tf.reduce_sum(tf.abs(self.F - self.Fp_real), axis=1)
+        fake_E = tf.reduce_sum(tf.abs(self.F - self.Fp_fake), axis=1)
 
-        m = 1.
+        m = 30.
         self.d_loss_real = tf.reduce_mean(tf.square(real_E))
-        self.d_loss_fake = tf.reduce_mean(tf.square(tf.maximum(m-fake_E, tf.zeros_like(self.F_logits))))
+        self.d_loss_fake = tf.reduce_mean(tf.square(tf.maximum(m-fake_E, tf.zeros([self.batch_size]))))
 
         self.d_loss = 0.5*(self.d_loss_real+self.d_loss_fake)
-        self.g_loss = tf.reduce_mean(tf.squared_difference(self.F_logits, self.Fp_fake_logits))
+        self.g_loss = tf.reduce_mean(tf.square(tf.reduce_sum(tf.abs(self.F - self.Fp_fake), axis=1))) + \
+                      self.L1_lambda * tf.reduce_mean(tf.abs(self.real_B - self.fake_B))
 
         self.d_loss_real_sum = tf.summary.scalar("d_loss_real", self.d_loss_real)
         self.d_loss_fake_sum = tf.summary.scalar("d_loss_fake", self.d_loss_fake)
@@ -229,7 +230,7 @@ class pix2pix(object):
             # h2 is (32x 32 x self.df_dim*4)
             h3 = lrelu(self.d_bn3(conv2d(h2, self.df_dim*8, d_h=1, d_w=1, name='d_h3_conv')))
             # h3 is (16 x 16 x self.df_dim*8)
-            h4 = linear(tf.reshape(h3, [self.batch_size, -1]), 1, 'd_h3_lin')
+            h4 = linear(tf.reshape(h3, [self.batch_size, -1]), 64, 'd_h3_lin')
 
             return tf.nn.sigmoid(h4), h4
 
